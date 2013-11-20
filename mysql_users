@@ -1,0 +1,75 @@
+#!/usr/bin/perl
+#
+#	mysql_users - Munin plugin to display MySQL CPU Time per user.
+#	Copyright 2013 - Ovchynnykov Serge (owserge@gmail.ru)
+#	https://github.com/owserge/
+#	
+#	CONFIGURATION:
+#
+#	[mysql*]
+#	env.user <options-for-mysql-user-here>
+#   env.passwd <options-for-mysql-passwd-here>
+#
+#
+
+use strict;
+use DBI;
+
+my $what = 'BYTES_RECEIVED'; #what exactly we need to spy for
+my $strokes = 10; #users to print
+my $dbUser = $ENV{user};
+my $dbPasswd = $ENV{passwd};
+my $result;
+my $ir=$ARGV[0]; 
+my $confResult;
+my @user;  
+my @value;
+my @row;
+
+#### Main configuration data
+$confResult  = "graph_title MySQL loading per user\n";
+$confResult .= "graph_vlabel CPU Time\n";
+$confResult .= "graph_category mysql\n";
+$confResult .= "graph_info CPU Time\n"; 
+#$confResult .= "graph_total total\n";
+
+#### Connecting to the MySQL
+my $dbh = DBI->connect("DBI:mysql:information_schema:localhost", $dbUser, $dbPasswd, 
+{'RaiseError' => 1, 'InactiveDestroy' => 1, 'AutoCommit' => 1}) or die "SQL Error: $DBI::errstr\n";
+
+#### Making query to the database
+my $sth = $dbh->prepare("SELECT USER, CPU_TIME FROM USER_STATISTICS ORDER BY CPU_TIME DESC");
+$sth->execute();
+
+#### Getting data from database to arrays
+while(@row=$sth->fetchrow_array()) {
+	if($row[0] eq 'root') { #value 'root' is prohibited to use here
+		push (@user, 'rootuser'); 
+	} else { 
+		push (@user, $row[0]); 
+	}
+	push (@value, $row[1]);
+}
+$sth->finish();
+
+#### Here we're gonna fill the arrays for printing
+for (my $i = 0; $i <= $strokes; $i++) {
+	$result .= $user[$i].".value ".$value[$i]."\n";
+	$confResult .= 	$user[$i].".label ".$user[$i]."\n";
+}
+
+#### Print config and exit
+if ($ir eq 'config') {
+	print $confResult;
+	exit 0;
+}
+
+### Once a day we should flush statistics
+my $loc=time;
+my ($min,$hour)=localtime($loc); 
+if($hour == 0 && $min > 2 && $min < 8) {
+	$dbh->do("FLUSH USER_STATISTICS");
+}
+
+print $result;
+exit 0;
