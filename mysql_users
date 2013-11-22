@@ -66,7 +66,7 @@ if ($ir eq 'config') {
 
 ### Once a day we should flush statistics
 my $loc=time;
-my ($min,$hour)=localtime($loc); 
+my ($sec,$min,$hour)=localtime($loc); 
 if($hour == 0 && $min > 2 && $min < 8) {
 	$dbh->do("FLUSH USER_STATISTICS");
 }
